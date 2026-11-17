@@ -144,7 +144,7 @@ footer {
     border: 1px solid #EAECF3;
     border-radius: 18px;
     padding: 23px;
-    min-height: 380px;
+    /* min-height removed so boxes fit tightly */
 }
 
 /* Buttons */
