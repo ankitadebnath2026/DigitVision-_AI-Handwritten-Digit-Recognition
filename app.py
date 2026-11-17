@@ -317,7 +317,8 @@ with left:
         height=280,
         width=280,
         drawing_mode="freedraw",
-        key="digit_canvas"
+        key="digit_canvas",
+        return_image_data=True # <-- This is the missing piece
     )
 
     st.caption("Use your mouse to draw a digit clearly.")
@@ -351,7 +352,7 @@ with right:
                     processed_image = preprocess_image(original_image)
 
                 # 2. Otherwise safely use canvas image
-                elif canvas_result is not None and canvas_result.image_data is not None:
+                elif canvas_result is not None and getattr(canvas_result, 'image_data', None) is not None:
                     canvas_image = canvas_result.image_data
                     
                     # Check if the canvas actually has data
