@@ -179,10 +179,8 @@ footer {
 # 3. LOAD CNN MODEL
 # ==========================================
 
-# Using a safer path resolution to avoid __file__ errors in some environments
 MODEL_PATH = Path.cwd() / "mnist_cnn_model.keras"
 if not MODEL_PATH.exists():
-    # Fallback if running directly from the script's directory
     try:
         MODEL_PATH = Path(__file__).parent / "mnist_cnn_model.keras"
     except NameError:
@@ -446,16 +444,13 @@ with right:
                         unsafe_allow_html=True
                     )
 
-                    # Confidence
-                    st.metric("Prediction Confidence", f"{confidence:.2f}%")
-
-                    # Class probabilities
-                    st.markdown("#### Class Probabilities")
-                    for i, probability in enumerate(probabilities):
-                        st.write(f"Digit {i}: {probability * 100:.2f}%")
-                        # Safely constrain the float between 0.0 and 1.0 to prevent st.progress errors
-                        safe_prob = min(max(float(probability), 0.0), 1.0)
-                        st.progress(safe_prob)
+                    # Confidence / Highest Probability only
+                    st.markdown("#### Class Probability")
+                    st.write(f"Digit **{digit}**: {confidence:.2f}%")
+                    
+                    # Safely constrain the float between 0.0 and 1.0 for the single progress bar
+                    safe_prob = min(max(confidence / 100.0, 0.0), 1.0)
+                    st.progress(safe_prob)
 
             except Exception as e:
                 st.error(f"Prediction error: {str(e)}")
