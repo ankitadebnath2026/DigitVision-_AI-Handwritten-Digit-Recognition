@@ -183,7 +183,6 @@ MODEL_PATH = Path(__file__).parent / "mnist_cnn_model.keras"
 
 @st.cache_resource
 def load_model():
-    # If the model file doesn't exist, this will naturally fail and get caught in the try-except
     return tf.keras.models.load_model(MODEL_PATH)
 
 try:
@@ -203,9 +202,7 @@ def preprocess_image(image):
     # Convert to grayscale
     image = image.convert("L")
     
-    # Invert white background to black (if necessary - canvas is already black bg, white stroke)
-    # To be safe and unified for both canvas and uploads:
-    # If the image is mostly white (like a paper upload), invert it.
+    # Invert white background to black for paper uploads
     img_array = np.array(image)
     if np.mean(img_array) > 127:
         image = ImageOps.invert(image)
@@ -213,13 +210,11 @@ def preprocess_image(image):
     # Resize image
     image = image.resize((28, 28))
     
-    # Convert to numpy
+    # Convert to numpy and normalize
     image = np.array(image, dtype=np.float32)
-    
-    # Normalize
     image = image / 255.0
     
-    # Reshape for CNN
+    # Reshape for CNN (batch_size, height, width, channels)
     image = image.reshape(1, 28, 28, 1)
     
     return image
@@ -295,10 +290,7 @@ with col3:
 # PREDICTION SECTION
 # ==========================================
 
-st.markdown(
-    '<div class="section-title">Try the AI Predictor</div>',
-    unsafe_allow_html=True
-)
+st.markdown('<div class="section-title">Try the AI Predictor</div>', unsafe_allow_html=True)
 
 st.markdown("""
 <div class="section-subtitle">
@@ -347,36 +339,36 @@ with right:
     st.write("Your prediction will appear here.")
 
     if model is None:
-        st.error("CNN model is unavailable.")
+        st.error("CNN model is unavailable. Please check model path.")
     else:
         if st.button("Recognize Digit"):
             try:
                 processed_image = None
 
-                # Uploaded image has priority
+                # 1. Uploaded image has priority
                 if uploaded_file is not None:
                     original_image = Image.open(uploaded_file)
                     processed_image = preprocess_image(original_image)
 
-                # Otherwise use canvas image safely
-                elif canvas_result is not None and getattr(canvas_result, 'image_data', None) is not None:
+                # 2. Otherwise safely use canvas image
+                elif canvas_result is not None and canvas_result.image_data is not None:
                     canvas_image = canvas_result.image_data
                     
-                    # Ensure it's a valid non-empty array
+                    # Check if the canvas actually has data
                     if isinstance(canvas_image, np.ndarray) and canvas_image.size > 0:
-                        # Extract RGB channels
-                        rgb_image = canvas_image[:, :, :3]
-                        # Convert to grayscale
-                        gray_image = np.mean(rgb_image, axis=2).astype(np.uint8)
-                        pil_image = Image.fromarray(gray_image)
+                        # Convert the raw RGBA numpy array to a PIL Image securely
+                        pil_image = Image.fromarray(canvas_image.astype(np.uint8))
                         processed_image = preprocess_image(pil_image)
 
+                # 3. Predict if we have a valid image
                 if processed_image is None:
                     st.warning("Please draw or upload a digit first.")
                 else:
                     digit, confidence, probabilities = predict_digit(processed_image)
 
                     st.success("Prediction completed!")
+                    
+                    # Display Result
                     st.markdown(
                         f"""
                         <div style="
@@ -404,10 +396,9 @@ with right:
                         st.write(f"Digit {i}: {probability * 100:.2f}%")
                         st.progress(float(probability))
 
-            except RuntimeError:
-                st.warning("Canvas image unavailable. Please draw again.")
+            # Catch exceptions properly to expose exact issues
             except Exception as e:
-                st.error(f"Prediction error: {e}")
+                st.error(f"Processing error: {str(e)}")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
