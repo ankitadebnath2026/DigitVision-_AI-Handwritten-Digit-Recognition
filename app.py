@@ -2,7 +2,7 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 from pathlib import Path
-from PIL import Image, ImageOps, ImageFilter
+from PIL import Image, ImageOps
 from streamlit_drawable_canvas import st_canvas
 
 # ==========================================
@@ -47,7 +47,6 @@ footer {
 }
 
 /* Navbar */
-
 .navbar {
     background: white;
     padding: 18px 25px;
@@ -72,7 +71,6 @@ footer {
 }
 
 /* Hero */
-
 .hero {
     background: white;
     border: 1px solid #EAECF3;
@@ -105,7 +103,6 @@ footer {
 }
 
 /* Cards */
-
 .card {
     background: white;
     border: 1px solid #EAECF3;
@@ -128,7 +125,6 @@ footer {
 }
 
 /* Sections */
-
 .section-title {
     color: #211D35;
     font-size: 21px;
@@ -143,7 +139,6 @@ footer {
 }
 
 /* Panels */
-
 .panel {
     background: white;
     border: 1px solid #EAECF3;
@@ -153,7 +148,6 @@ footer {
 }
 
 /* Buttons */
-
 .stButton > button {
     background: #6537D6;
     color: white;
@@ -171,7 +165,6 @@ footer {
 }
 
 /* Footer */
-
 .footer {
     text-align: center;
     color: #9696A5;
@@ -190,12 +183,12 @@ MODEL_PATH = Path(__file__).parent / "mnist_cnn_model.keras"
 
 @st.cache_resource
 def load_model():
+    # If the model file doesn't exist, this will naturally fail and get caught in the try-except
     return tf.keras.models.load_model(MODEL_PATH)
 
 try:
     model = load_model()
     model_status = "Active"
-
 except Exception as e:
     model = None
     model_status = "Error"
@@ -207,36 +200,34 @@ except Exception as e:
 # ==========================================
 
 def preprocess_image(image):
-
     # Convert to grayscale
     image = image.convert("L")
-
-    # Invert white background to black
-    image = ImageOps.invert(image)
-
+    
+    # Invert white background to black (if necessary - canvas is already black bg, white stroke)
+    # To be safe and unified for both canvas and uploads:
+    # If the image is mostly white (like a paper upload), invert it.
+    img_array = np.array(image)
+    if np.mean(img_array) > 127:
+        image = ImageOps.invert(image)
+        
     # Resize image
     image = image.resize((28, 28))
-
+    
     # Convert to numpy
     image = np.array(image, dtype=np.float32)
-
+    
     # Normalize
     image = image / 255.0
-
+    
     # Reshape for CNN
     image = image.reshape(1, 28, 28, 1)
-
+    
     return image
 
-
 def predict_digit(image):
-
     prediction = model.predict(image, verbose=0)
-
     digit = int(np.argmax(prediction[0]))
-
     confidence = float(np.max(prediction[0])) * 100
-
     return digit, confidence, prediction[0]
 
 
@@ -259,9 +250,7 @@ st.markdown("""
 st.markdown("""
 <div class="hero">
     <span class="tag">✦ DEEP LEARNING APPLICATION</span>
-
     <h1>Handwritten Digit Recognition</h1>
-
     <p>
         Experience the power of Artificial Intelligence.
         Draw a handwritten number or upload an image
@@ -317,7 +306,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
 left, right = st.columns([1.15, 0.85], gap="large")
 
 
@@ -326,9 +314,7 @@ left, right = st.columns([1.15, 0.85], gap="large")
 # ==========================================
 
 with left:
-
     st.markdown('<div class="panel">', unsafe_allow_html=True)
-
     st.markdown("### ✏️ Draw your digit")
 
     canvas_result = st_canvas(
@@ -348,7 +334,6 @@ with left:
         "Or upload a handwritten digit",
         type=["png", "jpg", "jpeg"]
     )
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -357,68 +342,41 @@ with left:
 # ==========================================
 
 with right:
-
     st.markdown('<div class="panel">', unsafe_allow_html=True)
-
     st.markdown("### 🎯 Prediction Result")
-
     st.write("Your prediction will appear here.")
 
     if model is None:
-
         st.error("CNN model is unavailable.")
-
     else:
-
         if st.button("Recognize Digit"):
-
             try:
-
                 processed_image = None
 
                 # Uploaded image has priority
                 if uploaded_file is not None:
-
                     original_image = Image.open(uploaded_file)
-
                     processed_image = preprocess_image(original_image)
 
-                # Otherwise use canvas image
-                elif canvas_result is not None:
-
+                # Otherwise use canvas image safely
+                elif canvas_result is not None and getattr(canvas_result, 'image_data', None) is not None:
                     canvas_image = canvas_result.image_data
-
-                    if canvas_image is not None:
-
+                    
+                    # Ensure it's a valid non-empty array
+                    if isinstance(canvas_image, np.ndarray) and canvas_image.size > 0:
+                        # Extract RGB channels
                         rgb_image = canvas_image[:, :, :3]
-
-                        gray_image = np.mean(
-                            rgb_image,
-                            axis=2
-                        )
-
-                        gray_image = np.uint8(gray_image)
-
-                        # Canvas uses white digit on black background.
-                        # Convert directly into a grayscale PIL image.
+                        # Convert to grayscale
+                        gray_image = np.mean(rgb_image, axis=2).astype(np.uint8)
                         pil_image = Image.fromarray(gray_image)
-
-                        processed_image = preprocess_image(
-                            pil_image
-                        )
+                        processed_image = preprocess_image(pil_image)
 
                 if processed_image is None:
-
                     st.warning("Please draw or upload a digit first.")
-
                 else:
-
-                    digit, confidence, probabilities = predict_digit(
-                        processed_image
-                    )
+                    digit, confidence, probabilities = predict_digit(processed_image)
 
                     st.success("Prediction completed!")
-
                     st.markdown(
                         f"""
                         <div style="
@@ -428,15 +386,10 @@ with right:
                             text-align:center;
                             margin:15px 0;
                         ">
-                            <div style="color:#6537D6;
-                                        font-size:14px;
-                                        font-weight:600;">
+                            <div style="color:#6537D6; font-size:14px; font-weight:600;">
                                 PREDICTED DIGIT
                             </div>
-
-                            <div style="font-size:75px;
-                                        font-weight:800;
-                                        color:#5429D8;">
+                            <div style="font-size:75px; font-weight:800; color:#5429D8;">
                                 {digit}
                             </div>
                         </div>
@@ -444,26 +397,15 @@ with right:
                         unsafe_allow_html=True
                     )
 
-                    st.metric(
-                        "Prediction Confidence",
-                        f"{confidence:.2f}%"
-                    )
-
+                    st.metric("Prediction Confidence", f"{confidence:.2f}%")
                     st.markdown("#### Class probabilities")
 
                     for i, probability in enumerate(probabilities):
-
-                        st.write(
-                            f"Digit {i}: {probability * 100:.2f}%"
-                        )
-
+                        st.write(f"Digit {i}: {probability * 100:.2f}%")
                         st.progress(float(probability))
 
             except RuntimeError:
-                st.warning(
-                    "Canvas image unavailable. Please draw again."
-                )
-
+                st.warning("Canvas image unavailable. Please draw again.")
             except Exception as e:
                 st.error(f"Prediction error: {e}")
 
