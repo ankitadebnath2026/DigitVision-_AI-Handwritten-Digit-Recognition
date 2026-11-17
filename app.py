@@ -3,9 +3,13 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 from pathlib import Path
+from PIL import Image, ImageOps, ImageFilter
 from streamlit_drawable_canvas import st_canvas
 
-# ---------------- PAGE CONFIG ----------------
+# ==========================================
+# PAGE CONFIGURATION
+# ==========================================
+
 st.set_page_config(
     page_title="DigitVision | AI Recognition",
     page_icon="🔢",
@@ -13,7 +17,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- CUSTOM CSS ----------------
+# ==========================================
+# CUSTOM CSS
+# ==========================================
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -26,8 +33,13 @@ html, body, [class*="css"] {
     background: #F7F8FC;
 }
 
-header {visibility: hidden;}
-footer {visibility: hidden;}
+header {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
 
 .block-container {
     padding-top: 2rem;
@@ -36,6 +48,7 @@ footer {visibility: hidden;}
 }
 
 /* Navbar */
+
 .navbar {
     background: white;
     padding: 18px 25px;
@@ -60,6 +73,7 @@ footer {visibility: hidden;}
 }
 
 /* Hero */
+
 .hero {
     background: white;
     border: 1px solid #EAECF3;
@@ -92,12 +106,13 @@ footer {visibility: hidden;}
 }
 
 /* Cards */
+
 .card {
     background: white;
     border: 1px solid #EAECF3;
     border-radius: 16px;
     padding: 23px;
-    height: 125px;
+    min-height: 125px;
 }
 
 .card-title {
@@ -113,7 +128,8 @@ footer {visibility: hidden;}
     margin-top: 12px;
 }
 
-/* Section */
+/* Sections */
+
 .section-title {
     color: #211D35;
     font-size: 21px;
@@ -128,14 +144,17 @@ footer {visibility: hidden;}
 }
 
 /* Panels */
+
 .panel {
     background: white;
     border: 1px solid #EAECF3;
     border-radius: 18px;
     padding: 23px;
+    min-height: 380px;
 }
 
 /* Buttons */
+
 .stButton > button {
     background: #6537D6;
     color: white;
@@ -153,6 +172,7 @@ footer {visibility: hidden;}
 }
 
 /* Footer */
+
 .footer {
     text-align: center;
     color: #9696A5;
@@ -163,7 +183,10 @@ footer {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 
-# ---------------- LOAD MODEL ----------------
+# ==========================================
+# LOAD CNN MODEL
+# ==========================================
+
 MODEL_PATH = Path(__file__).parent / "mnist_cnn_model.keras"
 
 @st.cache_resource
@@ -173,12 +196,55 @@ def load_model():
 try:
     model = load_model()
     model_status = "Active"
+
 except Exception as e:
     model = None
     model_status = "Error"
+    st.error(f"Model loading failed: {e}")
 
 
-# ---------------- NAVBAR ----------------
+# ==========================================
+# IMAGE PREPROCESSING
+# ==========================================
+
+def preprocess_image(image):
+
+    # Convert to grayscale
+    image = image.convert("L")
+
+    # Invert white background to black
+    image = ImageOps.invert(image)
+
+    # Resize image
+    image = image.resize((28, 28))
+
+    # Convert to numpy
+    image = np.array(image, dtype=np.float32)
+
+    # Normalize
+    image = image / 255.0
+
+    # Reshape for CNN
+    image = image.reshape(1, 28, 28, 1)
+
+    return image
+
+
+def predict_digit(image):
+
+    prediction = model.predict(image, verbose=0)
+
+    digit = int(np.argmax(prediction[0]))
+
+    confidence = float(np.max(prediction[0])) * 100
+
+    return digit, confidence, prediction[0]
+
+
+# ==========================================
+# NAVBAR
+# ==========================================
+
 st.markdown("""
 <div class="navbar">
     <div class="brand">✦ DigitVision</div>
@@ -187,21 +253,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ---------------- HERO SECTION ----------------
+# ==========================================
+# HERO SECTION
+# ==========================================
+
 st.markdown("""
 <div class="hero">
     <span class="tag">✦ DEEP LEARNING APPLICATION</span>
+
     <h1>Handwritten Digit Recognition</h1>
+
     <p>
         Experience the power of Artificial Intelligence.
-        Draw a handwritten number and let our CNN model
-        recognize your digit instantly.
+        Draw a handwritten number or upload an image
+        and let our CNN model recognize your digit instantly.
     </p>
 </div>
 """, unsafe_allow_html=True)
 
 
-# ---------------- METRICS ----------------
+# ==========================================
+# DASHBOARD METRICS
+# ==========================================
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -229,25 +303,37 @@ with col3:
     """, unsafe_allow_html=True)
 
 
-# ---------------- DRAWING SECTION ----------------
-st.markdown('<div class="section-title">Try the AI Predictor</div>',
-            unsafe_allow_html=True)
+# ==========================================
+# PREDICTION SECTION
+# ==========================================
+
+st.markdown(
+    '<div class="section-title">Try the AI Predictor</div>',
+    unsafe_allow_html=True
+)
 
 st.markdown("""
 <div class="section-subtitle">
-    Draw any digit from 0 to 9 using your mouse or upload an image.
+    Draw a digit between 0 and 9 or upload a handwritten image.
 </div>
 """, unsafe_allow_html=True)
 
+
 left, right = st.columns([1.15, 0.85], gap="large")
 
+
+# ==========================================
+# LEFT: DRAWING CANVAS
+# ==========================================
+
 with left:
+
     st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     st.markdown("### ✏️ Draw your digit")
 
     canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
+        fill_color="rgba(255,255,255,0)",
         stroke_width=18,
         stroke_color="#FFFFFF",
         background_color="#000000",
@@ -259,64 +345,142 @@ with left:
 
     st.caption("Use your mouse to draw a digit clearly.")
 
+    uploaded_file = st.file_uploader(
+        "Or upload a handwritten digit",
+        type=["png", "jpg", "jpeg"]
+    )
+
     st.markdown('</div>', unsafe_allow_html=True)
 
+
+# ==========================================
+# RIGHT: PREDICTION RESULT
+# ==========================================
+
 with right:
+
     st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     st.markdown("### 🎯 Prediction Result")
 
-    st.write("Your predicted digit will appear here.")
+    st.write("Your prediction will appear here.")
 
     if model is None:
-        st.error("Model could not be loaded. Check the model file.")
-    elif canvas_result.image_data is not None:
+
+        st.error("CNN model is unavailable.")
+
+    else:
+
         if st.button("Recognize Digit"):
-            image = canvas_result.image_data
 
-            # Extract grayscale image
-            image = image[:, :, :3]
-            image = np.mean(image, axis=2)
+            try:
 
-            # Convert to 0-255
-            image = np.uint8(image)
+                processed_image = None
 
-            # Resize to MNIST dimensions
-            image = tf.image.resize(
-                image[..., np.newaxis],
-                (28, 28)
-            ).numpy()
+                # Uploaded image has priority
+                if uploaded_file is not None:
 
-            # Normalize
-            image = image / 255.0
+                    original_image = Image.open(uploaded_file)
 
-            # Model prediction
-            prediction = model.predict(
-                image.reshape(1, 28, 28, 1),
-                verbose=0
-            )
+                    processed_image = preprocess_image(original_image)
 
-            digit = int(np.argmax(prediction[0]))
-            confidence = float(np.max(prediction[0])) * 100
+                # Otherwise use canvas image
+                elif canvas_result is not None:
 
-            st.success(f"Predicted Digit: {digit}")
-            st.metric("Confidence", f"{confidence:.2f}%")
+                    canvas_image = canvas_result.image_data
 
-            st.markdown("#### Class probabilities")
+                    if canvas_image is not None:
 
-            for i, probability in enumerate(prediction[0]):
-                st.write(f"Digit {i}: {probability*100:.2f}%")
+                        rgb_image = canvas_image[:, :, :3]
 
-                st.progress(float(probability))
+                        gray_image = np.mean(
+                            rgb_image,
+                            axis=2
+                        )
+
+                        gray_image = np.uint8(gray_image)
+
+                        # Canvas uses white digit on black background.
+                        # Convert directly into a grayscale PIL image.
+                        pil_image = Image.fromarray(gray_image)
+
+                        processed_image = preprocess_image(
+                            pil_image
+                        )
+
+                if processed_image is None:
+
+                    st.warning("Please draw or upload a digit first.")
+
+                else:
+
+                    digit, confidence, probabilities = predict_digit(
+                        processed_image
+                    )
+
+                    st.success("Prediction completed!")
+
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background:#F0EBFF;
+                            border-radius:16px;
+                            padding:25px;
+                            text-align:center;
+                            margin:15px 0;
+                        ">
+                            <div style="color:#6537D6;
+                                        font-size:14px;
+                                        font-weight:600;">
+                                PREDICTED DIGIT
+                            </div>
+
+                            <div style="font-size:75px;
+                                        font-weight:800;
+                                        color:#5429D8;">
+                                {digit}
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    st.metric(
+                        "Prediction Confidence",
+                        f"{confidence:.2f}%"
+                    )
+
+                    st.markdown("#### Class probabilities")
+
+                    for i, probability in enumerate(probabilities):
+
+                        st.write(
+                            f"Digit {i}: {probability * 100:.2f}%"
+                        )
+
+                        st.progress(float(probability))
+
+            except RuntimeError:
+                st.warning(
+                    "Canvas image unavailable. Please draw again."
+                )
+
+            except Exception as e:
+                st.error(f"Prediction error: {e}")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-# ---------------- FOOTER ----------------
+# ==========================================
+# FOOTER
+# ==========================================
+
 st.markdown("""
 <div class="footer">
-    DigitVision © 2026 | Built with Python, TensorFlow & Streamlit
+    DigitVision © 2026
     <br><br>
-    Powered by Convolutional Neural Networks
+    Built with Python • TensorFlow • CNN • Streamlit
+    <br>
+    Powered by Deep Learning
 </div>
 """, unsafe_allow_html=True)
